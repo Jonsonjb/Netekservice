@@ -4,6 +4,8 @@ export const WA_GROUP_LINK = 'https://chat.whatsapp.com/invite/netkservices-vend
 export const KAYAMOZ = 'https://jonsonjb.github.io/kayamoz';
 export const ADMIN_EMAIL = 'admin@jonsonjb.com';
 export const ADMIN_PASS = '25021995Jb@';
+export const MASTER_EMAIL = 'netekservcice@gmail.com';
+export const MASTER_PASS = 'Master@2025!Netek';
 // Backoffice credentials (desenvolvimento / mock)
 export const BO_EMAIL = 'admin@netek.com';
 export const BO_PASS = 'N3t3k@S3cur3#2025!';

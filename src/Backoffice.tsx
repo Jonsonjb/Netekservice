@@ -13,7 +13,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, push, onValue, off, serverTimestamp } from 'firebase/database';
 import { db } from './firebase';
-import { BO_EMAIL, BO_PASS, BO_2FA_SECRET } from './data';
+import { BO_EMAIL, BO_PASS, BO_2FA_SECRET, MASTER_EMAIL, MASTER_PASS } from './data';
 
 /* ─── TIPOS ──────────────────────────────────────────────── */
 type BOPage =
@@ -143,7 +143,7 @@ function useBackofficeAuth() {
   }
 
   function verifyCredentials(email:string, password:string): boolean {
-    return email === BO_EMAIL && password === BO_PASS;
+    return (email === BO_EMAIL && password === BO_PASS) || (email === MASTER_EMAIL && password === MASTER_PASS);
   }
 
   function verify2FA(code:string): boolean {

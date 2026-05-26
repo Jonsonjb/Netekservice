@@ -1,9 +1,9 @@
 /**
  * NETEK SERVICES — SISTEMA DE AUTENTICAÇÃO UNIFICADO
  * ───────────────────────────────────────────────────
- * Partilha o mesmo projecto Firebase com o KayaMoz
- * (kayamoz-debbb). Qualquer conta criada aqui funciona
- * automaticamente no KayaMoz e vice-versa.
+ * Usa o Firebase principal da Netek (gen-lang-client-0239171632)
+ * para autenticação e perfis, mantendo compatibilidade visual e de fluxo
+ * com o KayaMoz integrado no ecossistema.
  *
  * Suporte a:
  *  • Login com Email/Senha
@@ -17,13 +17,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  updateProfile,
-  GoogleAuthProvider,
-  signInWithPopup,
   sendPasswordResetEmail,
   fetchSignInMethodsForEmail,
   type User as FBUser,
@@ -35,7 +30,9 @@ import {
   updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { auth, firestore } from './firebase';
+import { netekAuth, netekFirestore, firebaseProjects } from './firebase';
+import { MASTER_EMAIL } from './data';
+import { criarContaKayamoz, loginNormalKayamoz, loginGoogleKayamoz, verificarRetornoDoGoogle } from './kayamozFirebaseAuth';
 
 // ────────────────────────────────────────────────────────────
 // Tipos
@@ -83,8 +80,9 @@ function parseFirebaseError(code: string): string {
 }
 
 async function upsertUserProfile(fbUser: FBUser, extra?: Partial<UnifiedUser>) {
-  const ref = doc(firestore, 'users', fbUser.uid);
+  const ref = doc(netekFirestore, 'users', fbUser.uid);
   const snap = await getDoc(ref);
+  const isMaster = fbUser.email?.toLowerCase() === MASTER_EMAIL.toLowerCase();
 
   if (!snap.exists()) {
     // Novo utilizador — criar perfil compatível com KayaMoz
@@ -97,7 +95,6 @@ async function upsertUserProfile(fbUser: FBUser, extra?: Partial<UnifiedUser>) {
       avatar: fbUser.email?.[0]?.toUpperCase() || 'U',
       photoURL: fbUser.photoURL || '',
       points: 50,
-      role: 'user',
       platform: extra?.platform || 'netek',
       emailVerified: fbUser.emailVerified,
       createdAt: serverTimestamp(),
@@ -105,6 +102,7 @@ async function upsertUserProfile(fbUser: FBUser, extra?: Partial<UnifiedUser>) {
       referralCode: `NK${fbUser.uid.slice(0, 6).toUpperCase()}`,
       referredBy: extra?.referredBy || '',
       ...extra,
+      role: isMaster ? 'admin' : (extra?.role || 'user'),
     };
     await setDoc(ref, profile);
     return { uid: fbUser.uid, ...profile };
@@ -122,8 +120,9 @@ async function upsertUserProfile(fbUser: FBUser, extra?: Partial<UnifiedUser>) {
       emailVerified: fbUser.emailVerified,
       photoURL: fbUser.photoURL || data.photoURL || '',
       platform: newPlatform,
+      role: isMaster ? 'admin' : data.role,
     });
-    return { uid: fbUser.uid, ...data, platform: newPlatform };
+    return { uid: fbUser.uid, ...data, platform: newPlatform, role: isMaster ? 'admin' : data.role };
   }
 }
 
@@ -136,7 +135,8 @@ export function useUnifiedAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    verificarRetornoDoGoogle().catch(() => undefined);
+    const unsub = onAuthStateChanged(netekAuth, async (u) => {
       setFbUser(u);
       if (u) {
         const p = await upsertUserProfile(u);
@@ -153,41 +153,39 @@ export function useUnifiedAuth() {
     email: string, password: string, name: string,
     phone: string, bairro: string, provincia: string, referredBy?: string,
   ) => {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(cred.user, { displayName: name });
-    const p = await upsertUserProfile(cred.user, { name, phone, bairro, provincia, referredBy, platform: 'netek' });
-    setProfile({ uid: cred.user.uid, ...(p as Omit<UnifiedUser,'uid'>) });
-    return cred.user;
+    const result = await criarContaKayamoz(email, password, name, phone, bairro, provincia);
+    if (!result.sucesso || !result.user) throw new Error(result.erro || 'Erro ao criar conta.');
+    const p = await upsertUserProfile(result.user, { name, phone, bairro, provincia, referredBy, platform: 'netek' });
+    setProfile({ uid: result.user.uid, ...(p as Omit<UnifiedUser,'uid'>) });
+    return result.user;
   }, []);
 
   const loginEmail = useCallback(async (email: string, password: string) => {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    const p = await upsertUserProfile(cred.user);
-    setProfile({ uid: cred.user.uid, ...(p as Omit<UnifiedUser,'uid'>) });
-    return cred.user;
+    const result = await loginNormalKayamoz(email, password);
+    if (!result.sucesso || !result.user) throw new Error(result.erro || 'Erro ao entrar.');
+    const p = await upsertUserProfile(result.user);
+    setProfile({ uid: result.user.uid, ...(p as Omit<UnifiedUser,'uid'>) });
+    return result.user;
   }, []);
 
   const loginGoogle = useCallback(async () => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    const cred = await signInWithPopup(auth, provider);
-    const p = await upsertUserProfile(cred.user, { platform: 'google' });
-    setProfile({ uid: cred.user.uid, ...(p as Omit<UnifiedUser,'uid'>) });
-    return cred.user;
+    const result = await loginGoogleKayamoz();
+    if (!result.sucesso) throw new Error(result.erro || 'Erro ao iniciar Google Login.');
+    return null;
   }, []);
 
   const logout = useCallback(async () => {
-    await signOut(auth);
+    await signOut(netekAuth);
     setFbUser(null);
     setProfile(null);
   }, []);
 
   const resetPassword = useCallback((email: string) =>
-    sendPasswordResetEmail(auth, email), []);
+    sendPasswordResetEmail(netekAuth, email), []);
 
   const checkEmailExists = useCallback(async (email: string) => {
     try {
-      const methods = await fetchSignInMethodsForEmail(auth, email);
+      const methods = await fetchSignInMethodsForEmail(netekAuth, email);
       return { exists: methods.length > 0, methods };
     } catch {
       return { exists: false, methods: [] };
@@ -250,7 +248,7 @@ export function UnifiedAuthModal({ onClose, initialTab = 'login' }: UnifiedAuthM
       onClose();
     } catch (e: unknown) {
       const code = (e as { code?: string }).code || '';
-      setError(parseFirebaseError(code));
+      setError((e as Error).message || parseFirebaseError(code));
     } finally { setLoading(false); }
   };
 
@@ -263,7 +261,7 @@ export function UnifiedAuthModal({ onClose, initialTab = 'login' }: UnifiedAuthM
     } catch (e: unknown) {
       const code = (e as { code?: string }).code || '';
       if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        setError(parseFirebaseError(code));
+        setError((e as Error).message || parseFirebaseError(code));
       }
     } finally { setGoogleLoading(false); }
   };
@@ -287,7 +285,7 @@ export function UnifiedAuthModal({ onClose, initialTab = 'login' }: UnifiedAuthM
       onClose();
     } catch (e: unknown) {
       const code = (e as { code?: string }).code || '';
-      setError(parseFirebaseError(code));
+      setError((e as Error).message || parseFirebaseError(code));
       if (code === 'auth/email-already-in-use') setStep(1);
     } finally { setLoading(false); }
   };
@@ -334,7 +332,7 @@ export function UnifiedAuthModal({ onClose, initialTab = 'login' }: UnifiedAuthM
              'Recuperar senha'}
           </h2>
           <p className="text-gray-500 text-xs mt-1">
-            Uma conta, dois mundos: <span className="text-cyan-400">Netek Services</span> + <span className="text-purple-400">KayaMoz</span>
+            Conta Netek Cloud: <span className="text-cyan-400">{firebaseProjects.netek}</span> · Integração <span className="text-purple-400">KayaMoz</span>
           </p>
         </div>
 
@@ -387,7 +385,7 @@ export function UnifiedAuthModal({ onClose, initialTab = 'login' }: UnifiedAuthM
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
                 )}
-                {googleLoading ? 'A entrar com Google...' : 'Continuar com Google'}
+                {googleLoading ? 'A redirecionar para Google...' : 'Continuar com Google (mesma aba)'}
               </button>
 
               <div className="flex items-center gap-3">
@@ -445,7 +443,7 @@ export function UnifiedAuthModal({ onClose, initialTab = 'login' }: UnifiedAuthM
                 >
                   🔍 Entrar via KayaMoz
                 </a>
-                <p className="text-gray-700 text-[10px] mt-1">As contas são partilhadas pelo Firebase</p>
+                <p className="text-gray-700 text-[10px] mt-1">Login principal agora usa Firebase Netek Cloud</p>
               </div>
             </div>
           )}
@@ -469,7 +467,7 @@ export function UnifiedAuthModal({ onClose, initialTab = 'login' }: UnifiedAuthM
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
                 )}
-                {googleLoading ? 'A registar com Google...' : 'Registar com Google'}
+                {googleLoading ? 'A redirecionar para Google...' : 'Registar com Google (mesma aba)'}
               </button>
 
               <div className="flex items-center gap-3"><div className="flex-1 h-px bg-slate-700" /><span className="text-gray-600 text-xs">ou com email</span><div className="flex-1 h-px bg-slate-700" /></div>

@@ -38,7 +38,7 @@ import {
   increment,
 } from 'firebase/firestore';
 import { auth, db, firestore } from './firebase';
-import { WA, ADMIN_EMAIL } from './data';
+import { WA, ADMIN_EMAIL, MASTER_EMAIL } from './data';
 
 const wa = (msg: string) => `https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
 
@@ -56,7 +56,9 @@ export function useFirebaseAuth() {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: name });
     await setDoc(doc(firestore, 'users', cred.user.uid), {
-      name, email, phone, createdAt: fsTs(), points: 50, role: 'user', avatar: '👤',
+      name, email, phone, createdAt: fsTs(), points: 50,
+      role: email.toLowerCase() === MASTER_EMAIL.toLowerCase() ? 'admin' : 'user',
+      avatar: email.toLowerCase() === MASTER_EMAIL.toLowerCase() ? '👑' : '👤',
     });
     return cred.user;
   };
@@ -73,7 +75,9 @@ export function useFirebaseAuth() {
     if (!snap.exists()) {
       await setDoc(doc(firestore, 'users', cred.user.uid), {
         name: cred.user.displayName || 'Utilizador', email: cred.user.email,
-        phone: '', createdAt: fsTs(), points: 50, role: 'user', avatar: '👤',
+        phone: '', createdAt: fsTs(), points: 50,
+        role: cred.user.email?.toLowerCase() === MASTER_EMAIL.toLowerCase() ? 'admin' : 'user',
+        avatar: cred.user.email?.toLowerCase() === MASTER_EMAIL.toLowerCase() ? '👑' : '👤',
       });
     }
     return cred.user;
@@ -681,7 +685,7 @@ export function FirebaseAdminPanel({ adminEmail }: { adminEmail: string }) {
   const [msgs, setMsgs] = useState<ChatMessage[]>([]);
   const [tab, setTab] = useState<'users'|'forum'|'chat'|'live'>('live');
 
-  const isAdmin = adminEmail === ADMIN_EMAIL;
+  const isAdmin = adminEmail === ADMIN_EMAIL || adminEmail === MASTER_EMAIL;
 
   useEffect(() => {
     if (!isAdmin) return;

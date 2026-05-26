@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { WA, KAYAMOZ, ADMIN_EMAIL, ADMIN_PASS, CERT_HOURS, freeCourses, blogPostsData, talentsData } from './data';
+import { WA, KAYAMOZ, ADMIN_EMAIL, ADMIN_PASS, MASTER_EMAIL, MASTER_PASS, CERT_HOURS, freeCourses, blogPostsData, talentsData } from './data';
 import type { User } from './data';
 import { OrcamentoPage, ConversoresPage, ChatIAPage, PomodoroPage, QRCodePage, GlossarioPage, SenhasPage, ShowcasePage, EmpregoPage, SimuladoresPage } from './features';
 import { useFirebaseAuth, RealTimeChatPage, FirebaseProfilePage, ForumPage, FirebaseAdminPanel } from './FirebaseFeatures';
@@ -8,11 +8,10 @@ import { MarketplacePage } from './Marketplace';
 import { BackofficeApp } from './Backoffice';
 import { KayaMozApp } from './KayaMoz';
 import { AuthSystemApp } from './AuthSystem';
-import { LibraryPage } from './Library';
-import { DonationsPage, DonationBanner } from './Donations';
-import { FloorPlanPage } from './FloorPlan';
-import { QuizOSINTPage } from './QuizOSINT';
-import { CookieBanner, TermosPage, PrivacidadePage, ShareButtons, DevBioPage } from './Legal';
+import { LibraryPage, FloorPlannerPage, DonationsPage, AdminUtilityPanels, DonationWidget } from './CitizenModules';
+import { QuizOSINTPage, AdminQuizPanel } from './QuizOSINT';
+import { CookieConsentBanner, TermsPage, PrivacyPage, SharePage, DeveloperProfilePage, ShareWidget } from './Legal';
+import { RandstadJobSearchPage } from './randstad/RandstadJobSearch';
 
 type Page = 'home' | 'servicos' | 'cursos' | 'blog' | 'agendamento' | 'directorio'
   | 'trabalhadores' | 'documentos' | 'minicurso' | 'talentos' | 'publicar'
@@ -21,8 +20,9 @@ type Page = 'home' | 'servicos' | 'cursos' | 'blog' | 'agendamento' | 'directori
   | 'orcamento' | 'conversores' | 'chatia' | 'pomodoro' | 'qrcode'
   | 'glossario' | 'senhas' | 'showcase' | 'emprego'
   | 'chat' | 'forum' | 'fbperfil' | 'marketplace' | 'backoffice' | 'kayamoz' | 'authsystem'
-  | 'biblioteca' | 'donativos' | 'plantas' | 'quizzes'
-  | 'termos' | 'privacidade' | 'desenvolvedor';
+  | 'biblioteca' | 'plantas' | 'donativos' | 'adminutil' | 'quizzes' | 'adminquiz'
+  | 'termos-de-uso' | 'politica-privacidade' | 'partilhar' | 'desenvolvedor'
+  | 'randstad-jobs';
 
 const WA_SVG = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -67,7 +67,7 @@ function Header({ page, setPage, sideOpen, setSideOpen, user, onLogout, onOpenAu
           <UserAvatarButton
             profile={unifiedProfile}
             fbUser={fbUser}
-            onOpenProfile={() => { setPage(user?.isAdmin ? 'admin' : 'fbperfil'); setSideOpen(false); window.scrollTo(0,0); }}
+            onOpenProfile={() => { setPage(user?.isAdmin ? 'admin' : 'perfil'); setSideOpen(false); window.scrollTo(0,0); }}
             onLogin={() => onOpenAuth('login')}
             onLogout={onLogout}
           />
@@ -94,6 +94,8 @@ function Sidebar({ open, page, setPage, setOpen, user, onLogout }:
       { id:'home' as Page, icon:'🏠', label:'Início' },
       { id:'sobre' as Page, icon:'ℹ️', label:'Sobre a Netek' },
       { id:'contato' as Page, icon:'📬', label:'Contacto' },
+      { id:'desenvolvedor' as Page, icon:'👨‍💻', label:'Desenvolvedor' },
+      { id:'partilhar' as Page, icon:'📤', label:'Partilhar Site' },
     ]},
     { label: '🌐 SERVIÇOS', items: [
       { id:'servicos' as Page, icon:'🌐', label:'Internet & Soluções' },
@@ -106,8 +108,9 @@ function Sidebar({ open, page, setPage, setOpen, user, onLogout }:
       { id:'trabalhadores' as Page, icon:'📋', label:'Directório' },
     ]},
     { label: '🎓 APRENDER', items: [
-      { id:'quizzes' as Page, icon:'🧠', label:'Quizzes & OSINT MZ' },
       { id:'cursos' as Page, icon:'📚', label:'Cursos com Certificado' },
+      { id:'quizzes' as Page, icon:'🧠', label:'Quizzes MZ + OSINT' },
+      { id:'biblioteca' as Page, icon:'📖', label:'Biblioteca Digital' },
       { id:'simuladores' as Page, icon:'🖥️', label:'Simuladores PC & Phone' },
       { id:'pomodoro' as Page, icon:'🍅', label:'Timer de Estudo' },
       { id:'ia' as Page, icon:'🤖', label:'Ferramentas de IA' },
@@ -117,15 +120,15 @@ function Sidebar({ open, page, setPage, setOpen, user, onLogout }:
       { id:'noticias' as Page, icon:'📡', label:'Novidades' },
     ]},
     { label: '🛠️ FERRAMENTAS', items: [
-      { id:'plantas' as Page, icon:'🏠', label:'Plantas 2D & 3D' },
-      { id:'biblioteca' as Page, icon:'📚', label:'Biblioteca Digital' },
+      { id:'plantas' as Page, icon:'🏠', label:'Plantas 2D/3D' },
       { id:'orcamento' as Page, icon:'💰', label:'Gerador de Orçamento' },
       { id:'conversores' as Page, icon:'💱', label:'Calculadoras Financeiras' },
       { id:'qrcode' as Page, icon:'📱', label:'Gerador QR Code' },
       { id:'senhas' as Page, icon:'🔐', label:'Gerador de Senhas' },
-      { id:'donativos' as Page, icon:'❤️', label:'Donativos (Voluntário)' },
+      { id:'donativos' as Page, icon:'💚', label:'Donativo Voluntário' },
     ]},
     { label: '💼 OPORTUNIDADES', items: [
+      { id:'randstad-jobs' as Page, icon:'🔎', label:'Busca de Empregos' },
       { id:'emprego' as Page, icon:'💼', label:'Vagas de Emprego' },
       { id:'showcase' as Page, icon:'🚀', label:'Showcase MZ' },
     ]},
@@ -136,6 +139,8 @@ function Sidebar({ open, page, setPage, setOpen, user, onLogout }:
       { id:'marketplace' as Page, icon:'🛍️', label:'Marketplace de Vendas' },
       { id:'backoffice' as Page, icon:'👑', label:'Backoffice Admin' },
       { id:'authsystem' as Page, icon:'🔑', label:'Sistema Auth Admin/Mod' },
+      { id:'adminutil' as Page, icon:'📚', label:'Admin Biblioteca/Donativos' },
+      { id:'adminquiz' as Page, icon:'🧠', label:'Admin Quizzes/OSINT' },
       { id:'chat' as Page, icon:'💬', label:'Chat ao Vivo' },
       { id:'forum' as Page, icon:'📌', label:'Fórum Comunidade' },
       { id:'fbperfil' as Page, icon:'🔐', label:'Perfil Firebase' },
@@ -143,11 +148,8 @@ function Sidebar({ open, page, setPage, setOpen, user, onLogout }:
     { label: '📝 DOCUMENTOS', items: [
       { id:'documentos' as Page, icon:'📄', label:'CV, Cartas e Contratos' },
       { id:'directorio' as Page, icon:'🏛️', label:'Sites Oficiais MZ' },
-    ]},
-    { label: '👨‍💻 SOBRE', items: [
-      { id:'desenvolvedor' as Page, icon:'👨‍💻', label:'Desenvolvedor @jonsonjb7' },
-      { id:'termos' as Page, icon:'📜', label:'Termos de Uso' },
-      { id:'privacidade' as Page, icon:'🔒', label:'Política de Privacidade' },
+      { id:'termos-de-uso' as Page, icon:'📜', label:'Termos de Uso' },
+      { id:'politica-privacidade' as Page, icon:'🔐', label:'Política de Privacidade' },
     ]},
   ];
 
@@ -231,8 +233,8 @@ function Hero({ setPage }: { setPage: (p: Page) => void }) {
     { icon:'🔍', t:'KayaMoz – Talentos', d:'Profissionais no seu bairro', p:'kayamoz' as Page },
     { icon:'📚', t:'Cursos + Certificado', d:'265h para certificar', p:'cursos' as Page },
     { icon:'📄', t:'Criar Documentos', d:'CV, Carta e Contrato', p:'documentos' as Page },
-    { icon:'📚', t:'Biblioteca Digital', d:'Livros grátis + E-Reader', p:'biblioteca' as Page },
-    { icon:'🏠', t:'Plantas 2D & 3D', d:'Desenhe a sua casa grátis', p:'plantas' as Page },
+    { icon:'💬', t:'Chat ao Vivo', d:'Firebase em tempo real', p:'chat' as Page },
+    { icon:'🤖', t:'Ferramentas de IA', d:'Grátis e prontas a usar', p:'ia' as Page },
   ];
   return (
     <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
@@ -296,8 +298,8 @@ function LoginPage({ onLogin, setPage }: { onLogin: (u: User) => void; setPage: 
   const handleLogin = () => {
     setError('');
     if (!form.email || !form.password) { setError('Preencha email e senha!'); return; }
-    if (form.email === ADMIN_EMAIL && form.password === ADMIN_PASS) {
-      onLogin({ id:'admin', name:'Admin JonsonJB', email:ADMIN_EMAIL, phone:'+258 83 510 9190', location:'Maputo, MZ', avatar:'👑', isAdmin:true });
+    if ((form.email === ADMIN_EMAIL && form.password === ADMIN_PASS) || (form.email === MASTER_EMAIL && form.password === MASTER_PASS)) {
+      onLogin({ id: form.email === MASTER_EMAIL ? 'master' : 'admin', name: form.email === MASTER_EMAIL ? 'Administrador Principal Netek' : 'Admin JonsonJB', email: form.email, phone:'+258 83 510 9190', location:'Maputo, MZ', avatar:'👑', isAdmin:true });
       setPage('admin'); return;
     }
     const users: (User & { password: string })[] = JSON.parse(localStorage.getItem('netek_users') || '[]');
@@ -349,8 +351,8 @@ function LoginPage({ onLogin, setPage }: { onLogin: (u: User) => void; setPage: 
               {isRegister ? '📝 Criar Conta' : '🚀 Entrar'}
             </button>
             {!isRegister && (
-              <button onClick={() => { set('email', ADMIN_EMAIL); }} className="w-full py-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 rounded-xl text-sm hover:bg-yellow-500/20 transition-all">
-                👑 Pré-preencher Admin
+              <button onClick={() => { set('email', MASTER_EMAIL); set('password', MASTER_PASS); }} className="w-full py-2 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 rounded-xl text-sm hover:bg-yellow-500/20 transition-all">
+                👑 Pré-preencher Master Admin
               </button>
             )}
           </div>
@@ -1764,16 +1766,9 @@ function Footer({ setPage }: { setPage: (p: Page) => void }) {
           </div>
         </div>
       </div>
-      {/* Partilhar */}
-      <div className="max-w-7xl mx-auto mt-8 pt-8 border-t border-slate-800">
-        <p className="text-gray-500 text-xs mb-3 text-center">📤 Partilhar este site</p>
-        <div className="flex justify-center"><ShareButtons /></div>
-      </div>
-      <div className="max-w-7xl mx-auto mt-6 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
-        <p className="text-gray-600 text-xs">© 2025 Netek Services · Moçambique · Desenvolvido por <button onClick={() => nav('desenvolvedor')} className="text-cyan-400 hover:text-cyan-300">@jonsonjb7</button></p>
-        <div className="flex gap-4">
-          {[['termos','Termos'],['privacidade','Privacidade'],['desenvolvedor','Desenvolvedor'],['sobre','Sobre'],['contato','Contacto']].map(([p,l]) => <button key={p} onClick={() => nav(p as Page)} className="text-gray-600 text-xs hover:text-white">{l}</button>)}
-        </div>
+      <div className="max-w-7xl mx-auto mt-8 pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
+        <p className="text-gray-600 text-xs">© 2025 Netek Services · Moçambique · v4.0</p>
+        <div className="flex flex-wrap gap-4 justify-center">{[['sobre','Sobre'],['contato','Contacto'],['noticias','Novidades'],['termos-de-uso','Termos'],['politica-privacidade','Privacidade'],['desenvolvedor','Jonson JB']].map(([p,l]) => <button key={p} onClick={() => nav(p as Page)} className="text-gray-600 text-xs hover:text-white">{l}</button>)}</div>
       </div>
     </footer>
   );
@@ -1809,7 +1804,7 @@ export default function App() {
         phone: '',
         location: 'Moçambique',
         avatar: '🔥',
-        isAdmin: fbUser.email === ADMIN_EMAIL,
+        isAdmin: fbUser.email === ADMIN_EMAIL || fbUser.email === MASTER_EMAIL || unifiedProfile?.role === 'admin',
       };
       setUser(fbAsUser);
       localStorage.setItem('netek_current_user', JSON.stringify(fbAsUser));
@@ -1830,7 +1825,7 @@ export default function App() {
 
   const render = () => {
     switch (page) {
-      case 'home': return <><Hero setPage={setPage} /><MarketplaceBanner setPage={setPage} /><ServicesPage /><TalentosPage setPage={setPage} /><CursosPage setPage={setPage} setSelectedCourse={setSelectedCourse} /><BlogPage /><DonationBanner setPage={(p) => setPage(p as Page)} /><Footer setPage={setPage} /></>;
+      case 'home': return <><Hero setPage={setPage} /><section className="py-8 bg-slate-900"><div className="max-w-5xl mx-auto px-4"><DonationWidget compact /></div></section><MarketplaceBanner setPage={setPage} /><ServicesPage /><TalentosPage setPage={setPage} /><CursosPage setPage={setPage} setSelectedCourse={setSelectedCourse} /><BlogPage /><section className="bg-slate-900 py-8"><div className="max-w-4xl mx-auto px-4"><ShareWidget /></div></section><Footer setPage={setPage} /></>;
       case 'servicos': return <><ServicesPage /><Footer setPage={setPage} /></>;
       case 'precos': return <><PrecosPage /><Footer setPage={setPage} /></>;
       case 'talentos': return <><TalentosPage setPage={setPage} /><Footer setPage={setPage} /></>;
@@ -1840,6 +1835,8 @@ export default function App() {
       case 'agendamento': return <><AgendamentoPage /><Footer setPage={setPage} /></>;
       case 'directorio': return <><DirectorioPage /><Footer setPage={setPage} /></>;
       case 'cursos': return <><CursosPage setPage={setPage} setSelectedCourse={setSelectedCourse} /><Footer setPage={setPage} /></>;
+      case 'quizzes': return <><QuizOSINTPage /><Footer setPage={setPage} /></>;
+      case 'biblioteca': return <><LibraryPage /><Footer setPage={setPage} /></>;
       case 'vercurso': return selectedCourse ? <CourseViewer courseId={selectedCourse} setPage={setPage} /> : <><CursosPage setPage={setPage} setSelectedCourse={setSelectedCourse} /><Footer setPage={setPage} /></>;
       case 'blog': return <><BlogPage /><Footer setPage={setPage} /></>;
       case 'ia': return <><IAPage /><Footer setPage={setPage} /></>;
@@ -1849,7 +1846,7 @@ export default function App() {
       case 'contato': return <><ContatoPage /><Footer setPage={setPage} /></>;
       case 'login': return <><UnifiedAuthModal onClose={() => setPage('home')} /><Footer setPage={setPage} /></>;
       case 'perfil': return user ? <PerfilPage user={user} setPage={setPage} setSelectedCourse={setSelectedCourse} onLogout={handleLogout} /> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
-      case 'admin': return user?.isAdmin ? <><AdminPage user={user} setPage={setPage} />{user.email === ADMIN_EMAIL && <div className="lg:ml-72"><FirebaseAdminPanel adminEmail={user.email} /></div>}</> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
+      case 'admin': return user?.isAdmin ? <><AdminPage user={user} setPage={setPage} />{(user.email === ADMIN_EMAIL || user.email === MASTER_EMAIL) && <div className="lg:ml-72"><FirebaseAdminPanel adminEmail={user.email} /></div>}</> : <LoginPage onLogin={handleLogin} setPage={setPage} />;
       case 'orcamento': return <><OrcamentoPage /><Footer setPage={setPage} /></>;
       case 'conversores': return <><ConversoresPage /><Footer setPage={setPage} /></>;
       case 'chatia': return <><ChatIAPage /><Footer setPage={setPage} /></>;
@@ -1858,18 +1855,20 @@ export default function App() {
       case 'glossario': return <><GlossarioPage /><Footer setPage={setPage} /></>;
       case 'senhas': return <><SenhasPage /><Footer setPage={setPage} /></>;
       case 'showcase': return <><ShowcasePage setPage={(p: string) => setPage(p as Page)} /><Footer setPage={setPage} /></>;
+      case 'randstad-jobs': return <><RandstadJobSearchPage /><Footer setPage={setPage} /></>;
       case 'emprego': return <><EmpregoPage /><Footer setPage={setPage} /></>;
       case 'simuladores': return <><SimuladoresPage /><Footer setPage={setPage} /></>;
+      case 'plantas': return <><FloorPlannerPage /><Footer setPage={setPage} /></>;
+      case 'donativos': return <><DonationsPage /><Footer setPage={setPage} /></>;
       case 'marketplace': return <><MarketplacePage fbUser={fbUser || null} /><Footer setPage={setPage} /></>;
       case 'backoffice': return <BackofficeApp />;
       case 'authsystem': return <AuthSystemApp />;
-      case 'biblioteca': return <><LibraryPage /><DonationBanner setPage={(p) => setPage(p as Page)} /><Footer setPage={setPage} /></>;
-      case 'donativos': return <><DonationsPage /><Footer setPage={setPage} /></>;
-      case 'plantas': return <><FloorPlanPage /><DonationBanner setPage={(p) => setPage(p as Page)} /><Footer setPage={setPage} /></>;
-      case 'quizzes': return <><QuizOSINTPage fbUser={fbUser || null} /><DonationBanner setPage={(p) => setPage(p as Page)} /><Footer setPage={setPage} /></>;
-      case 'termos': return <><TermosPage /><Footer setPage={setPage} /></>;
-      case 'privacidade': return <><PrivacidadePage /><Footer setPage={setPage} /></>;
-      case 'desenvolvedor': return <><DevBioPage /><Footer setPage={setPage} /></>;
+      case 'adminutil': return user?.isAdmin ? <><AdminUtilityPanels /><Footer setPage={setPage} /></> : <><LoginPage onLogin={handleLogin} setPage={setPage} /></>;
+      case 'adminquiz': return user?.isAdmin ? <><AdminQuizPanel /><Footer setPage={setPage} /></> : <><LoginPage onLogin={handleLogin} setPage={setPage} /></>;
+      case 'termos-de-uso': return <><TermsPage /><Footer setPage={setPage} /></>;
+      case 'politica-privacidade': return <><PrivacyPage /><Footer setPage={setPage} /></>;
+      case 'partilhar': return <><SharePage /><Footer setPage={setPage} /></>;
+      case 'desenvolvedor': return <><DeveloperProfilePage /><Footer setPage={setPage} /></>;
       case 'kayamoz': return <KayaMozApp fbUser={fbUser || null} profile={unifiedProfile} onLogout={handleLogout} />;
       case 'chat': return <><RealTimeChatPage fbUser={fbUser || null} /><Footer setPage={setPage} /></>;
       case 'forum': return <><ForumPage fbUser={fbUser || null} /><Footer setPage={setPage} /></>;
@@ -1884,7 +1883,7 @@ export default function App() {
       <Sidebar open={sideOpen} page={page} setPage={setPage} setOpen={setSideOpen} user={user} onLogout={handleLogout} />
       <main className="lg:ml-72 transition-all">{render()}</main>
       <WAFloat />
-      <CookieBanner />
+      <CookieConsentBanner />
       {/* Auth Modal unificado Netek + KayaMoz */}
       {showAuthModal && <UnifiedAuthModal onClose={() => setShowAuthModal(false)} initialTab={authTab} />}
     </div>

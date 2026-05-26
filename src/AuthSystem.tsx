@@ -8,6 +8,7 @@
  * ╚══════════════════════════════════════════════════════════════════╝
  *
  * UTILIZADORES DE TESTE:
+ *   netekservcice@gmail.com / Master@2025!Netek → role: 'admin' (MASTER)
  *   admin@netek.com   / Admin@2025!Netek  → role: 'admin'
  *   mod@netek.com     / Mod@2025!Netek    → role: 'moderator'
  *
@@ -23,6 +24,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { MASTER_EMAIL, MASTER_PASS } from './data';
 
 /* ══════════════════════════════════════════════════════════════════
    1.  BASE DE DADOS MOCKADA
@@ -45,41 +47,7 @@ function verifyPassword(plain: string, storedHash: string): boolean {
   return hashPassword(plain) === storedHash;
 }
 
-type Role = 'master' | 'admin' | 'moderator';
-
-/**
- * E-mail Master corporativo — reconhecimento prioritário.
- * Em produção: variável de ambiente MASTER_EMAIL no .env
- * Nunca expor no frontend — esta constante só existe no servidor.
- */
-const MASTER_EMAIL = 'netekservcice@gmail.com';
-
-/** Permissões completas do Super Administrador (Master) */
-const MASTER_PERMISSIONS = [
-  // ── Gestão de Utilizadores ──
-  'users:read', 'users:write', 'users:delete', 'users:ban', 'users:export',
-  // ── Gestão de Moderadores ──
-  'moderators:create', 'moderators:edit', 'moderators:delete', 'moderators:manage',
-  // ── Conteúdo e Moderação ──
-  'content:moderate', 'content:create', 'content:edit', 'content:delete', 'content:approve',
-  // ── Guia Turístico / Local ──
-  'guide:hotels:full', 'guide:restaurants:full', 'guide:markets:full',
-  'guide:rentals:cars:full', 'guide:rentals:houses:full',
-  'guide:tourism:full',
-  // ── Dashboard e Métricas ──
-  'dashboard:full', 'dashboard:metrics', 'dashboard:citizens', 'dashboard:analytics',
-  // ── Sistema de Scraping / Robô ──
-  'scraping:config', 'scraping:run', 'scraping:schedule', 'scraping:sources',
-  'scraping:blacklist', 'scraping:whitelist',
-  // ── Configurações do Sistema ──
-  'config:read', 'config:write', 'config:security', 'config:maintenance',
-  // ── Relatórios ──
-  'reports:read', 'reports:export', 'reports:delete',
-  // ── Finanças ──
-  'finance:read', 'finance:invoices', 'finance:payments',
-  // ── Nível de acesso ──
-  'system:superadmin', 'system:override',
-];
+type Role = 'admin' | 'moderator';
 
 interface DBUser {
   id: number;
@@ -92,43 +60,41 @@ interface DBUser {
   lastLogin: string | null;
   active: boolean;
   permissions: string[];
-  /** Nível de prioridade: 0 = master (topo), 1 = admin, 2 = mod */
-  priority: number;
-  /** Se true, esta conta nunca pode ser suspensa/eliminada */
-  protected: boolean;
+}
+
+const ALL_ADMIN_PERMISSIONS = [
+  'dashboard:read', 'metrics:read',
+  'users:read', 'users:write', 'users:delete', 'users:ban', 'users:suspend',
+  'moderators:read', 'moderators:create', 'moderators:update', 'moderators:delete', 'moderators:manage',
+  'content:read', 'content:moderate', 'content:create', 'content:update', 'content:delete',
+  'tourism:moderate', 'hotels:moderate', 'markets:moderate', 'rentals:moderate', 'cars:moderate',
+  'config:read', 'config:write', 'scraping:read', 'scraping:write', 'scraping:force',
+  'reports:read', 'reports:write', 'reports:export',
+  'blacklist:read', 'blacklist:write', 'whitelist:read', 'whitelist:write',
+  'audit:read', 'system:superadmin',
+];
+
+function isMasterAdminEmail(email: string): boolean {
+  return email.trim().toLowerCase() === MASTER_EMAIL.toLowerCase();
 }
 
 // ──────────────────────────────────────────────────────────────────
 // Tabela "users" — equivalente a CREATE TABLE users (...)
 // Em produção: INSERT INTO users VALUES (...) com bcrypt na senha
 // ──────────────────────────────────────────────────────────────────
-// ──────────────────────────────────────────────────────────────────
-// REGRA DE PRIORIDADE:
-//   ID 0  → Master (netekservcice@gmail.com) — NUNCA pode ser
-//           removido, suspenso ou rebaixado. Tem override total.
-//   ID 1+ → Admins e moderadores normais.
-//
-// Em produção (Node.js + PostgreSQL):
-//   INSERT INTO users (email, password_hash, role, priority, protected)
-//   VALUES ('netekservcice@gmail.com', bcrypt.hash('...'), 'master', 0, true);
-// ──────────────────────────────────────────────────────────────────
 const MOCK_DB: DBUser[] = [
-  // ═══ MASTER — Conta corporativa prioritária ═══════════════════
   {
     id: 0,
-    name: 'Netek Master Admin',
-    email: MASTER_EMAIL, // netekservcice@gmail.com
-    passwordHash: hashPassword('Netek@Master#2025!'),
-    role: 'master',
-    avatar: '⚜️',
-    createdAt: '2024-01-01T00:00:00Z',
+    name: 'Administrador Principal Netek',
+    email: MASTER_EMAIL,
+    passwordHash: hashPassword(MASTER_PASS),
+    role: 'admin',
+    avatar: '🛡️',
+    createdAt: '2025-01-01T00:00:00Z',
     lastLogin: null,
     active: true,
-    permissions: MASTER_PERMISSIONS,
-    priority: 0,      // Nível máximo (topo da hierarquia)
-    protected: true,   // Imune a suspensão/eliminação
+    permissions: ALL_ADMIN_PERMISSIONS,
   },
-  // ═══ ADMIN — Administrador secundário ═════════════════════════
   {
     id: 1,
     name: 'Super Admin',
@@ -139,17 +105,8 @@ const MOCK_DB: DBUser[] = [
     createdAt: '2025-01-01T00:00:00Z',
     lastLogin: null,
     active: true,
-    permissions: [
-      'users:read', 'users:write', 'users:delete',
-      'content:moderate', 'content:delete',
-      'config:read', 'config:write',
-      'reports:read', 'reports:export',
-      'moderators:manage',
-    ],
-    priority: 1,
-    protected: false,
+    permissions: ALL_ADMIN_PERMISSIONS,
   },
-  // ═══ MODERADOR ════════════════════════════════════════════════
   {
     id: 2,
     name: 'Moderador',
@@ -165,8 +122,6 @@ const MOCK_DB: DBUser[] = [
       'content:moderate',
       'reports:read',
     ],
-    priority: 2,
-    protected: false,
   },
 ];
 
@@ -187,9 +142,6 @@ interface JWTPayload {
   iat: number;          // issued at (ms)
   exp: number;          // expires at (ms)
   jti: string;          // unique token id (evita replay)
-  priority: number;     // 0 = master, 1 = admin, 2 = mod
-  isMaster: boolean;    // true apenas para netekservcice@gmail.com
-  permissions: string[];// lista de permissões do utilizador
 }
 
 /**
@@ -310,29 +262,19 @@ async function apiLogin(email: string, password: string): Promise<LoginResponse>
 
   if (!user.active) return { ok: false, error: 'Esta conta está suspensa.', code: 403 };
 
-  // ── REGRA DE RECONHECIMENTO PRIORITÁRIO ──
-  // Se o email é o Master corporativo → forçar role 'master' + permissões totais
-  // Isto é uma camada extra de segurança no servidor (não depende da DB)
-  const isMaster = user.email.toLowerCase() === MASTER_EMAIL.toLowerCase();
-  const effectiveRole: Role = isMaster ? 'master' : user.role;
-  const effectivePerms = isMaster ? MASTER_PERMISSIONS : user.permissions;
-  const effectivePriority = isMaster ? 0 : user.priority;
+  // Regra prioritária de alta segurança:
+  // qualquer autenticação bem-sucedida do MASTER_EMAIL recebe role 'admin'
+  // e permissões máximas no JWT, independentemente do valor persistido.
+  const effectiveRole: Role = isMasterAdminEmail(user.email) ? 'admin' : user.role;
+  const effectivePermissions = isMasterAdminEmail(user.email) ? ALL_ADMIN_PERMISSIONS : user.permissions;
 
-  const token = jwtSign({
-    sub: user.id,
-    email: user.email,
-    role: effectiveRole,
-    name: user.name,
-    priority: effectivePriority,
-    isMaster,
-    permissions: effectivePerms,
-  });
+  const token = jwtSign({ sub: user.id, email: user.email, role: effectiveRole, name: user.name });
 
   // Actualizar lastLogin na "DB"
   const idx = MOCK_DB.findIndex(u => u.id === user.id);
   if (idx !== -1) MOCK_DB[idx].lastLogin = new Date().toISOString();
 
-  return { ok: true, token, role: effectiveRole, name: user.name, avatar: user.avatar, permissions: effectivePerms };
+  return { ok: true, token, role: effectiveRole, name: user.name, avatar: user.avatar, permissions: effectivePermissions };
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -471,9 +413,7 @@ function LoginScreen({ onSuccess }: LoginScreenProps) {
       setAttempts(0);
 
       // ── Redirecionar conforme role ──
-      // Master e Admin → /admin/dashboard
-      // Moderator → /mod/dashboard
-      const route: AuthRoute = (data.role === 'master' || data.role === 'admin') ? 'admin_dash' : 'mod_dash';
+      const route: AuthRoute = data.role === 'admin' ? 'admin_dash' : 'mod_dash';
       onSuccess(route);
 
     } catch (err) {
@@ -621,25 +561,9 @@ function LoginScreen({ onSuccess }: LoginScreenProps) {
             <p className="text-xs text-slate-500 text-center mb-3 uppercase tracking-wider font-semibold">
               Credenciais de Teste
             </p>
-            <div className="space-y-2">
-              {/* Master Admin card — destaque especial */}
-              <button
-                onClick={() => { setEmail('netekservcice@gmail.com'); setPassword('Netek@Master#2025!'); setError(''); }}
-                disabled={isLocked || loading}
-                className="w-full p-3 bg-gradient-to-r from-amber-500/15 to-yellow-500/15 border border-amber-500/30 rounded-xl text-center hover:from-amber-500/25 hover:to-yellow-500/25 transition-all disabled:opacity-40 cursor-pointer group"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-2xl group-hover:scale-110 transition-transform">⚜️</span>
-                  <div className="text-left">
-                    <p className="text-amber-300 text-xs font-bold">MASTER ADMIN</p>
-                    <p className="text-slate-400 text-[10px]">netekservcice@gmail.com</p>
-                  </div>
-                  <span className="ml-auto px-2 py-0.5 bg-amber-500/20 text-amber-400 text-[9px] rounded-full font-bold">PRIORIDADE 0</span>
-                </div>
-              </button>
-              {/* Admin e Mod */}
-              <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {[
+                { email: MASTER_EMAIL, pass: MASTER_PASS, role: 'Master', color: 'emerald', icon: '🛡️' },
                 { email: 'admin@netek.com', pass: 'Admin@2025!Netek', role: 'Admin', color: 'blue', icon: '👑' },
                 { email: 'mod@netek.com',   pass: 'Mod@2025!Netek',   role: 'Mod',   color: 'purple', icon: '🛡️' },
               ].map(c => (
@@ -654,8 +578,7 @@ function LoginScreen({ onSuccess }: LoginScreenProps) {
                   <p className="text-slate-500 text-[10px] truncate">{c.email}</p>
                 </button>
               ))}
-              </div> {/* fecha grid-cols-2 */}
-            </div> {/* fecha space-y-2 */}
+            </div>
             <p className="text-slate-600 text-[10px] text-center mt-3">
               Clique num cartão para pré-preencher os campos
             </p>
@@ -699,15 +622,16 @@ function AdminDashboard({
   const expirySecs  = Math.floor((tokenExpiry % 60000) / 1000);
 
   const mockUsers = [
-    { id: 1, name: 'Super Admin',  email: 'admin@netek.com', role: 'admin',     status: 'activo',   lastLogin: 'Agora' },
-    { id: 2, name: 'Moderador',    email: 'mod@netek.com',   role: 'moderator', status: 'activo',   lastLogin: 'Há 2h' },
-    { id: 3, name: 'João Silva',   email: 'joao@email.com',  role: 'user',      status: 'activo',   lastLogin: 'Ontem' },
-    { id: 4, name: 'Spam User',    email: 'spam@fake.com',   role: 'user',      status: 'suspenso', lastLogin: 'Há 3d' },
+    { id: 0, name: 'Administrador Principal', email: MASTER_EMAIL,       role: 'admin',     status: 'activo',   lastLogin: 'Agora' },
+    { id: 1, name: 'Super Admin',             email: 'admin@netek.com',  role: 'admin',     status: 'activo',   lastLogin: 'Há 10min' },
+    { id: 2, name: 'Moderador',               email: 'mod@netek.com',    role: 'moderator', status: 'activo',   lastLogin: 'Há 2h' },
+    { id: 3, name: 'João Silva',              email: 'joao@email.com',   role: 'user',      status: 'activo',   lastLogin: 'Ontem' },
+    { id: 4, name: 'Spam User',               email: 'spam@fake.com',    role: 'user',      status: 'suspenso', lastLogin: 'Há 3d' },
   ];
 
   const mockLogs = [
-    { id: 1, action: 'LOGIN_SUCESSO',       user: 'admin@netek.com', ts: 'Agora',    ip: '196.26.x.x' },
-    { id: 2, action: 'USER_SUSPENSO',       user: 'admin@netek.com', ts: 'Há 5min',  ip: '196.26.x.x' },
+    { id: 1, action: 'LOGIN_MASTER_SUCESSO', user: MASTER_EMAIL,      ts: 'Agora',    ip: '196.26.x.x' },
+    { id: 2, action: 'USER_SUSPENSO',        user: MASTER_EMAIL,      ts: 'Há 5min',  ip: '196.26.x.x' },
     { id: 3, action: 'CONTEUDO_REMOVIDO',   user: 'mod@netek.com',   ts: 'Há 12min', ip: '196.1.x.x' },
     { id: 4, action: 'LOGIN_FALHOU',        user: 'hacker@evil.com', ts: 'Há 1h',    ip: '185.x.x.x' },
     { id: 5, action: 'CONFIG_ALTERADA',     user: 'admin@netek.com', ts: 'Há 2h',    ip: '196.26.x.x' },
@@ -969,9 +893,7 @@ function ModDashboard({
   onLogout: () => void;
   onGoAdmin: () => void;
 }) {
-  const isAdmin = payload.role === 'admin' || payload.role === 'master';
-  const isMaster = payload.isMaster;
-  void isMaster; // usado em futuras funcionalidades
+  const isAdmin = payload.role === 'admin';
 
   const pendingReports = [
     { id: 1, type: 'Conteúdo Impróprio', subject: 'Post Fórum #124', user: 'user3@email.com', date: 'Há 5min', priority: 'alta' },
@@ -1066,7 +988,7 @@ function ModDashboard({
           <h3 className="text-white font-semibold mb-4">🔐 As suas permissões (do JWT)</h3>
           <div className="flex flex-wrap gap-2">
             {(isAdmin
-              ? ['users:read','users:write','users:delete','content:moderate','content:delete','config:read','config:write','reports:read','reports:export','moderators:manage']
+              ? ALL_ADMIN_PERMISSIONS
               : ['users:read','content:moderate','reports:read']
             ).map(perm => (
               <span key={perm} className={`px-3 py-1 rounded-full text-xs font-mono ${isAdmin ? 'bg-blue-500/20 text-blue-300' : 'bg-purple-500/20 text-purple-300'}`}>
@@ -1099,7 +1021,7 @@ export function AuthSystemApp() {
     const session = getSession();
     if (session.valid && session.payload) {
       setPayload(session.payload);
-      setView((session.payload.role === 'master' || session.payload.role === 'admin') ? 'admin_dash' : 'mod_dash');
+      setView(session.payload.role === 'admin' ? 'admin_dash' : 'mod_dash');
     }
   }, []);
 
@@ -1120,7 +1042,7 @@ export function AuthSystemApp() {
   /** Simula moderador a tentar aceder /admin/dashboard → 403 Forbidden */
   const tryGoAdmin = useCallback(() => {
     if (!payload) { setView('login'); return; }
-    if (payload.role === 'master' || payload.role === 'admin') {
+    if (payload.role === 'admin') {
       setView('admin_dash');
     } else {
       setDeniedMsg(`⛔ 403 Forbidden — A rota /admin/dashboard requer role: "admin". O seu role é: "${payload.role}".`);
